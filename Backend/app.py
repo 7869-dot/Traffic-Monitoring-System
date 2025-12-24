@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from routers import arduino, vehicle_detector, camera_stream
+from routers import arduino, vehicle_detector, camera_stream, video_upload
 from database import init_db
 
 # Initialize FastAPI app
@@ -32,6 +32,7 @@ async def startup_event():
 app.include_router(arduino.router, prefix="/api/arduino", tags=["Arduino"])
 app.include_router(vehicle_detector.router, prefix="/api/vehicles", tags=["Vehicle Detection"])
 app.include_router(camera_stream.router, prefix="/api/camera", tags=["Camera Stream"])
+app.include_router(video_upload.router, prefix="/api/video", tags=["Video Upload"])
 
 # Root endpoint
 @app.get("/")
@@ -43,7 +44,8 @@ async def root():
             "endpoints": {
                 "arduino": "/api/arduino",
                 "vehicles": "/api/vehicles",
-                "camera": "/api/camera"
+                "camera": "/api/camera",
+                "video": "/api/video"
             }
         }
     )
