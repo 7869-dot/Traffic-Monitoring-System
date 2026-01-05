@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict  # <-- added Dict
 from datetime import datetime
 import sys
 import os
@@ -8,6 +8,7 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from database import get_db
+
 
 router = APIRouter()
 
@@ -31,15 +32,29 @@ class DetectionRequest(BaseModel):
 
 @router.get("/status")
 async def get_detector_status():
-    """Get vehicle detector status"""
+    """Get vehicle detector status including DeepSORT tracking status"""
     if detector is None:
-        return {"available": False, "status": "Vehicle detector not initialized"}
+        return {
+            "available": False, 
+            "status": "Vehicle detector not initialized",
+            "tracking": {"deep_sort_available": False, "status": "not initialized"}
+        }
     
     try:
         is_ready = detector.is_ready()
-        return {"available": is_ready, "status": "ready" if is_ready else "not ready"}
+        tracking_status = detector.get_tracking_status() if hasattr(detector, 'get_tracking_status') else {}
+        
+        return {
+            "available": is_ready, 
+            "status": "ready" if is_ready else "not ready",
+            "tracking": tracking_status
+        }
     except Exception as e:
-        return {"available": False, "status": f"Error: {str(e)}"}
+        return {
+            "available": False, 
+            "status": f"Error: {str(e)}",
+            "tracking": {"deep_sort_available": False, "status": "error"}
+        }
 
 @router.post("/detect")
 async def detect_vehicles(request: DetectionRequest):

@@ -112,6 +112,16 @@ class VideoProcessor:
                 "total": 0,
             }
 
+            # For DeepSORT: track unique IDs per type + overall
+            seen_ids_by_type: Dict[str, set[int]] = {
+                "car": set(),
+                "truck": set(),
+                "bus": set(),
+                "motorcycle": set(),
+                "bicycle": set(),
+            }
+            seen_all_ids: set[int] = set()
+
             per_frame_results: List[FrameDetectionResult] = []
 
             frame_index = 0
@@ -135,12 +145,35 @@ class VideoProcessor:
                 detections = self.detector.detect(frame=frame)
                 counts = self.detector.count_vehicles(detections)
 
-                # Aggregate into overall counts
-                for key in overall_counts.keys():
-                    if key in counts:
-                        overall_counts[key] += counts[key]
+                # ---- Aggregation logic ----
+                if detections and "track_id" in detections[0]:
+                    # Use DeepSORT track IDs -> one count per physical vehicle
+                    for det in detections:
+                        vtype = det.get("vehicle_type")
+                        track_id = det.get("track_id")
 
-                # Optionally collect per-frame info
+                        if track_id is None:
+                            continue
+
+                        # Global unique count
+                        if track_id not in seen_all_ids:
+                            seen_all_ids.add(track_id)
+                            overall_counts["total"] += 1
+
+                        # Per-type unique counts
+                        if (
+                            vtype in seen_ids_by_type
+                            and track_id not in seen_ids_by_type[vtype]
+                        ):
+                            seen_ids_by_type[vtype].add(track_id)
+                            overall_counts[vtype] += 1
+                else:
+                    # Fallback: old behaviour (per-frame counting)
+                    for key in overall_counts.keys():
+                        if key in counts:
+                            overall_counts[key] += counts[key]
+
+                # Optionally collect per-frame info (still uses per-frame counts)
                 if collect_per_frame:
                     timestamp_sec = float(frame_index / fps) if fps > 0 else 0.0
                     per_frame_results.append(
@@ -168,6 +201,3 @@ class VideoProcessor:
             overall_counts=overall_counts,
             per_frame_results=per_frame_results,
         )
-
-
-
