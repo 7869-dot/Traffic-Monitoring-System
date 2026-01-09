@@ -168,7 +168,3 @@ Add your license here (MIT / Apache 2.0 / GPL / etc.)
 
 If you have questions or want to collaborate, open an issue in this repo.
 
-```
-
-If you paste your **repo structure** (like folder names + your actual upload endpoint name, and whether your main file is `app.py` or `main.py`), I can tailor the README so it matches your project perfectly (with the exact commands and endpoints).
-```
