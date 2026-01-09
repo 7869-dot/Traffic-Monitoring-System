@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi import UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import Request
@@ -8,6 +9,7 @@ import logging
 import socket
 import json
 from datetime import datetime
+from typing import List
 
 from routers import arduino, vehicle_detector, camera_stream, esp32
 from database import init_db
@@ -140,6 +142,52 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# ESP32 frame upload endpoint (accepts multiple frames per request)
+@app.post("/upload_frame")
+async def upload_frames(files: List[UploadFile] = File(...)):
+    """
+    Accept multiple frames from ESP32-CAM via multipart/form-data.
+    Retur,ns per-file metadata so the device knows the uploads succeeded.
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+
+    metadata = []
+    for idx, file in enumerate(files):
+        try:
+            content = await file.read()
+        except Exception as exc:
+            # #region agent log
+            debug_log("A", f"{__file__}:{170}", "Failed to read upload", {
+                "index": idx,
+                "filename": getattr(file, "filename", "unknown"),
+                "error": str(exc)
+            })
+            # #endregion
+            raise HTTPException(status_code=400, detail=f"Failed to read frame {idx}") from exc
+
+        size_bytes = len(content)
+        metadata.append({
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "size_bytes": size_bytes
+        })
+
+    # #region agent log
+    debug_log("A", f"{__file__}:{188}", "Frames received", {
+        "count": len(metadata),
+        "files": metadata
+    })
+    # #endregion
+
+    return JSONResponse(
+        content={
+            "message": "Frames received",
+            "count": len(metadata),
+            "files": metadata
+        }
+    )
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
