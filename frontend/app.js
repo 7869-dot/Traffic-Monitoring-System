@@ -19,11 +19,18 @@
   };
   const ORDER = ["car", "truck", "bus", "motorcycle", "bicycle"];
   const COLORS = {
-    car: "#4cc2ff",
-    truck: "#ffb02e",
-    bus: "#f87171",
-    motorcycle: "#a78bfa",
-    bicycle: "#34d399",
+    car: "linear-gradient(90deg,#4cc2ff,#22e3c3)",
+    truck: "linear-gradient(90deg,#ffb02e,#ff7a3c)",
+    bus: "linear-gradient(90deg,#ff5a6a,#ff4d9d)",
+    motorcycle: "linear-gradient(90deg,#a855f7,#4cc2ff)",
+    bicycle: "linear-gradient(90deg,#9ae84a,#22e3c3)",
+  };
+  const GLOW = {
+    car: "rgba(34,227,195,0.5)",
+    truck: "rgba(255,122,60,0.5)",
+    bus: "rgba(255,77,157,0.5)",
+    motorcycle: "rgba(168,85,247,0.5)",
+    bicycle: "rgba(154,232,74,0.5)",
   };
 
   const $ = (id) => document.getElementById(id);
@@ -217,25 +224,26 @@
       row.className = "bar-row";
       row.innerHTML =
         '<div class="bar-name">' + (VEHICLES[key] || "") + " " + key + "</div>" +
-        '<div class="bar-track"><div class="bar-fill" style="background:' + COLORS[key] + '"></div></div>' +
+        '<div class="bar-track"><div class="bar-fill" style="background:' + COLORS[key] + ';--glow:' + GLOW[key] + '"></div></div>' +
         '<div class="bar-val">' + val + "</div>";
       els.chart.appendChild(row);
-      // animate width on next frame
-      requestAnimationFrame(() => {
-        row.querySelector(".bar-fill").style.width = ((val / max) * 100) + "%";
-      });
+      // Set the final width via a timer (not rAF, which pauses in background
+      // tabs); the CSS transition animates from the initial 0% width.
+      const fill = row.querySelector(".bar-fill");
+      setTimeout(() => { fill.style.width = ((val / max) * 100) + "%"; }, 60);
     });
   }
 
   function animateNumber(el, target) {
-    const start = 0, dur = 700, t0 = performance.now();
-    function step(now) {
-      const p = Math.min((now - t0) / dur, 1);
+    // Timer-based count-up so it still completes if the tab is backgrounded.
+    const dur = 700, steps = 28, t0 = Date.now();
+    clearInterval(el._anim);
+    el._anim = setInterval(() => {
+      const p = Math.min((Date.now() - t0) / dur, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(start + (target - start) * eased);
-      if (p < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
+      el.textContent = Math.round(target * eased);
+      if (p >= 1) { el.textContent = target; clearInterval(el._anim); }
+    }, dur / steps);
   }
 
   // ---- theme ---------------------------------------------------------------
