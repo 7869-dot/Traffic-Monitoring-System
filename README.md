@@ -78,12 +78,71 @@ python -m http.server 5500
 Open `http://127.0.0.1:5500`, set the **API base URL** to your backend
 (default `http://127.0.0.1:8000`), choose a video and click **Analyze**.
 
-### Deploying
+---
 
-- **Frontend:** host the `frontend/` folder on any static host (Netlify, Vercel,
-  GitHub Pages, S3, etc.). Set the API base URL in the UI to your backend's URL.
-- **Backend:** deploy `Backend/` to any Python host (Render, Railway, Fly.io, a
-  VM, etc.) and set `ALLOWED_ORIGINS` to your frontend's URL.
+## ☁️ Deploying (Vercel frontend + Render backend)
+
+Deploy the **backend first** so you have its URL for the frontend config.
+
+### 1) Backend on Render
+
+The repo includes [`render.yaml`](render.yaml). Either create a **Blueprint**
+(New + → Blueprint → pick this repo) or a **Web Service** with these settings:
+
+| Setting | Value |
+| ------- | ----- |
+| Root Directory | `Backend` |
+| Runtime | Python |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app:app --host 0.0.0.0 --port $PORT --workers 1` |
+| Health Check Path | `/health` |
+
+**Environment variables (Render):**
+
+| Key | Value | Notes |
+| --- | ----- | ----- |
+| `ALLOWED_ORIGINS` | `https://your-app.vercel.app` | Your Vercel URL. Comma‑separate multiple (e.g. add preview domains). **No trailing slash.** |
+| `PYTHON_VERSION` | `3.12.7` | Avoids PyTorch wheel issues on newer Python. |
+
+Do **not** set `PORT` — Render provides it automatically.
+
+> ⚠️ **Notes that matter for this backend:**
+> - Use a **single worker** (`--workers 1`). The progress/job store is
+>   in-memory, so a job created on one worker wouldn't be found by another.
+> - PyTorch + YOLO is memory-heavy. Render's **free tier (512 MB) may OOM** while
+>   loading the model — if the service keeps restarting/crashing, upgrade to a
+>   plan with ≥ 2 GB RAM.
+> - `requirements.txt` already uses **CPU-only PyTorch** and **headless OpenCV**,
+>   which are required on a server (the GUI OpenCV build crashes on import).
+> - The YOLO weights (`Backend/yolov8n.pt`) are committed, so no model download
+>   is needed at runtime.
+
+### 2) Frontend on Vercel
+
+1. Edit [`frontend/config.js`](frontend/config.js) and set your Render URL:
+   ```js
+   window.TMS_API_BASE = "https://traffic-monitoring-api.onrender.com";
+   ```
+   Commit and push.
+2. In Vercel: **New Project** → import this repo → set **Root Directory** to
+   `frontend`. Framework preset = **Other** (no build step). Deploy.
+
+**Environment variables (Vercel):** none. The frontend is static with no build
+step, so Vercel env vars can't be injected into the JS — the backend URL lives
+in `config.js` instead (and can also be changed at runtime in the UI).
+
+### 3) Connect them
+
+Make sure Render's `ALLOWED_ORIGINS` exactly matches your final Vercel domain.
+Open the Vercel URL — the **Backend connection** badge should read *connected*.
+
+### Database?
+
+No separate database is required. The app auto-creates a small SQLite file on
+startup, but the **video-analysis flow the frontend uses does not depend on it**
+(it's only used by the optional Arduino/manual-detect endpoints). On Render the
+filesystem is ephemeral, which is fine here. Add a Render Disk or external DB
+only if you later need to persist detection/Arduino logs.
 
 ---
 

@@ -1,0 +1,23 @@
+# Render Blueprint for the FastAPI backend.
+# In Render: New + > Blueprint, point at this repo, and it reads this file.
+# (Or configure a Web Service manually with the same settings.)
+services:
+  - type: web
+    name: traffic-monitoring-api
+    runtime: python
+    rootDir: Backend
+    # Free tier is 512 MB RAM and may OOM while loading PyTorch + YOLO.
+    # Bump to a plan with >= 2 GB RAM if the service restarts/crashes.
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # IMPORTANT: a single worker. The background-job store is in-memory, so a
+    # job created on one worker wouldn't be visible to another when polled.
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      # Set this in the Render dashboard to your Vercel URL(s), comma-separated,
+      # e.g. https://your-app.vercel.app
+      - key: ALLOWED_ORIGINS
+        sync: false

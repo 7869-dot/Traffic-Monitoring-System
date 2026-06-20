@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  const DEFAULT_API = "http://127.0.0.1:8000";
+  const DEFAULT_API = window.TMS_API_BASE || "http://127.0.0.1:8000";
   const API_KEY = "tms_api_url";
   const THEME_KEY = "tms_theme";
   const POLL_MS = 1200;

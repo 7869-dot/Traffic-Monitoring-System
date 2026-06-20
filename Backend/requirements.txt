@@ -1,13 +1,18 @@
+# Install CPU-only PyTorch wheels (much smaller; no GPU on Render/Vercel).
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 python-multipart>=0.0.12
 pydantic>=2.10.0
-opencv-python>=4.10.0
+# Headless OpenCV: the GUI build (opencv-python) needs libGL/libgthread that
+# aren't present on headless servers and crashes on import. Headless has the
+# same cv2 API minus imshow (which we don't use server-side).
+opencv-python-headless>=4.10.0
 numpy>=1.26.0
 pyserial>=3.5
 setuptools>=65.0.0
 ultralytics>=8.0.0
-torch>=2.0.0
-torchvision>=0.15.0
+torch>=2.2.0
+torchvision>=0.17.0
 pillow>=10.0.0
-
