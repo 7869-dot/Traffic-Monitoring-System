@@ -3,6 +3,7 @@ Camera Streamer Module
 Handles camera streaming and snapshot capture
 """
 import cv2
+import numpy as np
 from typing import List, Dict, Optional, Generator
 import threading
 import time
@@ -65,7 +66,7 @@ class CameraStreamer:
                     self.cameras[index] = cap
                     return True
                 return False
-        except (ValueError, Exception) as e:
+        except Exception as e:
             print(f"Error opening camera {camera_id}: {e}")
             return False
     
@@ -77,7 +78,7 @@ class CameraStreamer:
                 if index in self.cameras:
                     self.cameras[index].release()
                     del self.cameras[index]
-        except (ValueError, Exception) as e:
+        except Exception as e:
             print(f"Error closing camera {camera_id}: {e}")
     
     def get_stream(self, camera_id: str) -> Generator:
@@ -107,7 +108,7 @@ class CameraStreamer:
             yield frame
             time.sleep(0.03)  # ~30 FPS
     
-    def get_snapshot(self, camera_id: str) -> Optional:
+    def get_snapshot(self, camera_id: str) -> Optional[np.ndarray]:
         """
         Get a single snapshot from a camera
         

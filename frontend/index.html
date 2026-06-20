@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🚦 Traffic Monitoring System</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>🚦 Traffic Monitoring System</h1>
+      <p class="subtitle">Upload traffic footage and count vehicles with YOLOv8</p>
+    </header>
+
+    <!-- API connection -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Backend</h2>
+        <span id="status-badge" class="badge badge-unknown">checking…</span>
+      </div>
+      <div class="row">
+        <label for="api-url">API base URL</label>
+        <div class="api-input">
+          <input id="api-url" type="text" placeholder="http://127.0.0.1:8000" />
+          <button id="check-btn" class="btn btn-secondary">Check</button>
+        </div>
+      </div>
+      <p class="hint">Point this at your deployed FastAPI server. It is saved in your browser.</p>
+    </section>
+
+    <!-- Upload -->
+    <section class="card">
+      <div class="card-head"><h2>Analyze a video</h2></div>
+
+      <label id="drop-zone" class="drop-zone" for="file-input">
+        <input id="file-input" type="file" accept="video/mp4,video/x-msvideo,video/quicktime,.mp4,.avi,.mov,.mkv" hidden />
+        <div class="drop-inner">
+          <span class="drop-icon">🎬</span>
+          <span id="drop-text">Click to choose or drop an MP4 here</span>
+        </div>
+      </label>
+
+      <div class="options">
+        <div class="opt">
+          <label for="sample-rate">Frame sample rate</label>
+          <input id="sample-rate" type="number" min="1" max="60" value="5" />
+          <span class="opt-hint">process every Nth frame</span>
+        </div>
+        <div class="opt">
+          <label for="max-frames">Max frames</label>
+          <input id="max-frames" type="number" min="0" placeholder="all" />
+          <span class="opt-hint">0 / blank = whole video</span>
+        </div>
+      </div>
+
+      <button id="analyze-btn" class="btn btn-primary" disabled>Analyze video</button>
+
+      <div id="progress" class="progress hidden">
+        <div class="spinner"></div>
+        <span>Processing… large videos can take a while.</span>
+      </div>
+      <div id="error" class="error hidden"></div>
+    </section>
+
+    <!-- Results -->
+    <section id="results" class="card hidden">
+      <div class="card-head"><h2>Results</h2></div>
+
+      <div class="result-meta" id="result-meta"></div>
+
+      <h3 class="result-h3">Unique vehicles <small>(estimated distinct vehicles in clip)</small></h3>
+      <div class="stat-grid" id="unique-grid"></div>
+
+      <h3 class="result-h3">Peak simultaneous <small>(most seen at once in a single frame)</small></h3>
+      <div class="stat-grid" id="peak-grid"></div>
+    </section>
+
+    <footer class="footer">
+      <span>FastAPI · YOLOv8 · OpenCV</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

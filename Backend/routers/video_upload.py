@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
@@ -57,8 +58,10 @@ async def upload_and_process_video(
             detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(sorted(allowed_ext))}",
         )
 
-    # Save file to uploads directory
-    save_path = os.path.join(UPLOAD_DIR, file.filename)
+    # Save file to uploads directory using a safe, unique name to avoid
+    # path traversal and collisions from arbitrary client filenames.
+    safe_ext = ext if ext in allowed_ext else ".mp4"
+    save_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}{safe_ext}")
     try:
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -81,13 +84,18 @@ async def upload_and_process_video(
         raise HTTPException(status_code=500, detail=f"Failed to process video: {exc}")
 
     response_data = {
-        "video_path": summary.video_path,
+        "filename": file.filename,
         "total_frames": summary.total_frames,
         "processed_frames": summary.processed_frames,
         "frame_sample_rate": summary.frame_sample_rate,
         "duration_sec": summary.duration_sec,
         "fps": summary.fps,
-        "overall_counts": summary.overall_counts,
+        # Most vehicles of each type seen at the same time in one frame.
+        "peak_counts": summary.peak_counts,
+        # Estimated number of distinct vehicles across the whole clip.
+        "unique_estimate": summary.unique_estimate,
+        # Average vehicles per processed frame.
+        "avg_per_frame": summary.avg_per_frame,
     }
 
     return JSONResponse(content=response_data)

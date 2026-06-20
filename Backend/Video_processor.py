@@ -1,6 +1,18 @@
 """
 Video Processor Module
-Handles offline video processing and vehicle counting
+Handles offline video processing and vehicle counting.
+
+Counting strategy
+-----------------
+Running a detector on every frame and summing the per-frame counts massively
+over-counts vehicles (a car visible for 100 frames would be counted ~100 times).
+Instead this module reports three honest metrics:
+
+- ``peak_counts``    : the most vehicles of each type seen *simultaneously* in a
+                       single processed frame.
+- ``unique_estimate``: an estimate of distinct vehicles over the whole clip,
+                       produced by a lightweight centroid tracker.
+- ``avg_per_frame``  : average vehicles per processed frame.
 """
 
 from __future__ import annotations
@@ -10,9 +22,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
 import cv2
-import numpy as np
 
 from vehicle_detector import VehicleDetector
+from tracker import CentroidTracker
 
 
 @dataclass
@@ -35,20 +47,17 @@ class VideoProcessingSummary:
     frame_sample_rate: int
     duration_sec: float
     fps: float
-    overall_counts: Dict[str, int]
+    peak_counts: Dict[str, int]
+    unique_estimate: Dict[str, int]
+    avg_per_frame: Dict[str, float]
     per_frame_results: List[FrameDetectionResult] = field(default_factory=list)
 
 
 class VideoProcessor:
-    """
-    Processes video files offline and counts vehicles using VehicleDetector.
+    """Processes video files offline and counts vehicles using VehicleDetector."""
 
-    Typical usage:
-
-        processor = VideoProcessor()
-        summary = processor.process_video("path/to/video.mp4")
-        print(summary.overall_counts)
-    """
+    # Vehicle classes we report on (keeps response shape stable even at zero).
+    VEHICLE_CLASSES = ["car", "truck", "bus", "motorcycle", "bicycle"]
 
     def __init__(
         self,
@@ -56,8 +65,6 @@ class VideoProcessor:
         frame_sample_rate: int = 5,
     ) -> None:
         """
-        Initialize VideoProcessor.
-
         Args:
             detector: Optional VehicleDetector instance. If None, a new one is created.
             frame_sample_rate: Process every Nth frame (default: 5) for performance.
@@ -66,7 +73,6 @@ class VideoProcessor:
         self.frame_sample_rate = max(1, int(frame_sample_rate))
 
     def _validate_video_path(self, video_path: str) -> None:
-        """Validate that the video path exists and is a file."""
         if not video_path:
             raise ValueError("video_path is required")
         if not os.path.exists(video_path):
@@ -85,34 +91,33 @@ class VideoProcessor:
 
         Args:
             video_path: Path to the video file.
-            max_frames: Optional limit on number of frames to process.
+            max_frames: Optional limit on number of *processed* frames.
             collect_per_frame: If True, store per-frame detection details.
-
-        Returns:
-            VideoProcessingSummary with overall and per-frame counts.
         """
         self._validate_video_path(video_path)
+
+        if not self.detector.is_ready():
+            raise RuntimeError(
+                "Vehicle detector model is not loaded. Ensure 'ultralytics' is "
+                "installed and the YOLO weights are available."
+            )
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
 
+        # Keys we always report (per-class plus a total).
+        count_keys = self.VEHICLE_CLASSES + ["total"]
+
+        peak_counts: Dict[str, int] = {k: 0 for k in count_keys}
+        sum_counts: Dict[str, int] = {k: 0 for k in count_keys}
+        tracker = CentroidTracker()
+        per_frame_results: List[FrameDetectionResult] = []
+
         try:
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
             fps = float(cap.get(cv2.CAP_PROP_FPS)) or 0.0
             duration_sec = float(total_frames / fps) if fps > 0 else 0.0
-
-            # Overall counts aggregated across processed frames
-            overall_counts: Dict[str, int] = {
-                "car": 0,
-                "truck": 0,
-                "bus": 0,
-                "motorcycle": 0,
-                "bicycle": 0,
-                "total": 0,
-            }
-
-            per_frame_results: List[FrameDetectionResult] = []
 
             frame_index = 0
             processed_frames = 0
@@ -122,31 +127,32 @@ class VideoProcessor:
                 if not ret:
                     break
 
-                # Stop if we've reached the max_frames limit
-                if max_frames is not None and processed_frames >= max_frames:
-                    break
-
-                # Only process every Nth frame
+                # Only process every Nth frame.
                 if frame_index % self.frame_sample_rate != 0:
                     frame_index += 1
                     continue
 
-                # Run detection on this frame
+                if max_frames is not None and processed_frames >= max_frames:
+                    break
+
                 detections = self.detector.detect(frame=frame)
                 counts = self.detector.count_vehicles(detections)
 
-                # Aggregate into overall counts
-                for key in overall_counts.keys():
-                    if key in counts:
-                        overall_counts[key] += counts[key]
+                # Peak = max simultaneous; sum used for averaging.
+                for key in count_keys:
+                    value = counts.get(key, 0)
+                    peak_counts[key] = max(peak_counts[key], value)
+                    sum_counts[key] += value
 
-                # Optionally collect per-frame info
+                # Feed the tracker for unique-vehicle estimation.
+                tracker.update(detections)
+
                 if collect_per_frame:
                     timestamp_sec = float(frame_index / fps) if fps > 0 else 0.0
                     per_frame_results.append(
                         FrameDetectionResult(
                             frame_index=frame_index,
-                            timestamp_sec=timestamp_sec,
+                            timestamp_sec=round(timestamp_sec, 3),
                             detections=detections,
                             counts=counts,
                         )
@@ -158,16 +164,29 @@ class VideoProcessor:
         finally:
             cap.release()
 
+        # Build unique estimate from tracker (ensure all classes present).
+        unique_estimate: Dict[str, int] = {k: 0 for k in self.VEHICLE_CLASSES}
+        for vtype, n in tracker.unique_counts.items():
+            if vtype in unique_estimate:
+                unique_estimate[vtype] += n
+        unique_estimate["total"] = sum(unique_estimate.values())
+
+        # Average vehicles per processed frame.
+        avg_per_frame: Dict[str, float] = {}
+        for key in count_keys:
+            avg_per_frame[key] = round(
+                sum_counts[key] / processed_frames, 2
+            ) if processed_frames else 0.0
+
         return VideoProcessingSummary(
             video_path=os.path.abspath(video_path),
             total_frames=total_frames,
             processed_frames=processed_frames,
             frame_sample_rate=self.frame_sample_rate,
-            duration_sec=duration_sec,
-            fps=fps,
-            overall_counts=overall_counts,
+            duration_sec=round(duration_sec, 2),
+            fps=round(fps, 2),
+            peak_counts=peak_counts,
+            unique_estimate=unique_estimate,
+            avg_per_frame=avg_per_frame,
             per_frame_results=per_frame_results,
         )
-
-
-
