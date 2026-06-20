@@ -3,30 +3,39 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🚦 Traffic Monitoring System</title>
+  <title>Traffic Monitoring System</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="bg-grid" aria-hidden="true"></div>
+
   <div class="app">
     <header class="header">
-      <h1>🚦 Traffic Monitoring System</h1>
-      <p class="subtitle">Upload traffic footage and count vehicles with YOLOv8</p>
+      <div class="logo">
+        <div class="traffic-light" aria-hidden="true">
+          <span class="lamp red"></span>
+          <span class="lamp amber"></span>
+          <span class="lamp green"></span>
+        </div>
+        <div class="logo-text">
+          <h1>Traffic Monitoring System</h1>
+          <p class="subtitle">Vehicle detection &amp; counting with YOLOv8</p>
+        </div>
+      </div>
+      <button id="theme-btn" class="theme-btn" title="Toggle theme">🌙</button>
     </header>
 
     <!-- API connection -->
     <section class="card">
       <div class="card-head">
-        <h2>Backend</h2>
+        <h2><span class="dot"></span> Backend connection</h2>
         <span id="status-badge" class="badge badge-unknown">checking…</span>
       </div>
-      <div class="row">
-        <label for="api-url">API base URL</label>
-        <div class="api-input">
-          <input id="api-url" type="text" placeholder="http://127.0.0.1:8000" />
-          <button id="check-btn" class="btn btn-secondary">Check</button>
-        </div>
+      <div class="api-input">
+        <input id="api-url" type="text" placeholder="http://127.0.0.1:8000" spellcheck="false" />
+        <button id="check-btn" class="btn btn-secondary">Check</button>
       </div>
-      <p class="hint">Point this at your deployed FastAPI server. It is saved in your browser.</p>
+      <p class="hint">Point this at your deployed FastAPI server — saved in your browser.</p>
     </section>
 
     <!-- Upload -->
@@ -34,10 +43,12 @@
       <div class="card-head"><h2>Analyze a video</h2></div>
 
       <label id="drop-zone" class="drop-zone" for="file-input">
-        <input id="file-input" type="file" accept="video/mp4,video/x-msvideo,video/quicktime,.mp4,.avi,.mov,.mkv" hidden />
+        <input id="file-input" type="file"
+               accept="video/mp4,video/x-msvideo,video/quicktime,.mp4,.avi,.mov,.mkv" hidden />
         <div class="drop-inner">
           <span class="drop-icon">🎬</span>
-          <span id="drop-text">Click to choose or drop an MP4 here</span>
+          <span id="drop-title">Drop a video here</span>
+          <span id="drop-sub">or click to browse · MP4, AVI, MOV, MKV</span>
         </div>
       </label>
 
@@ -45,35 +56,51 @@
         <div class="opt">
           <label for="sample-rate">Frame sample rate</label>
           <input id="sample-rate" type="number" min="1" max="60" value="5" />
-          <span class="opt-hint">process every Nth frame</span>
+          <span class="opt-hint">process every Nth frame (higher = faster)</span>
         </div>
         <div class="opt">
           <label for="max-frames">Max frames</label>
           <input id="max-frames" type="number" min="0" placeholder="all" />
-          <span class="opt-hint">0 / blank = whole video</span>
+          <span class="opt-hint">limit work · 0 / blank = whole video</span>
         </div>
       </div>
 
-      <button id="analyze-btn" class="btn btn-primary" disabled>Analyze video</button>
+      <button id="analyze-btn" class="btn btn-primary" disabled>
+        <span class="btn-label">Analyze video</span>
+      </button>
 
       <div id="progress" class="progress hidden">
-        <div class="spinner"></div>
-        <span>Processing… large videos can take a while.</span>
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        <div class="progress-meta">
+          <span id="progress-stage">Uploading…</span>
+          <span id="progress-pct">0%</span>
+        </div>
       </div>
+
       <div id="error" class="error hidden"></div>
     </section>
 
     <!-- Results -->
-    <section id="results" class="card hidden">
-      <div class="card-head"><h2>Results</h2></div>
+    <section id="results" class="card results hidden">
+      <div class="card-head">
+        <h2>Results</h2>
+        <span id="result-file" class="badge badge-file"></span>
+      </div>
+
+      <div class="hero-stat">
+        <div class="hero-number" id="hero-total">0</div>
+        <div class="hero-label" id="hero-label">estimated unique vehicles</div>
+      </div>
 
       <div class="result-meta" id="result-meta"></div>
 
-      <h3 class="result-h3">Unique vehicles <small>(estimated distinct vehicles in clip)</small></h3>
-      <div class="stat-grid" id="unique-grid"></div>
+      <div class="tabs">
+        <button class="tab active" data-tab="unique">Unique estimate</button>
+        <button class="tab" data-tab="peak">Peak simultaneous</button>
+      </div>
+      <p class="tab-hint" id="tab-hint">Distinct vehicles tracked across the whole clip.</p>
 
-      <h3 class="result-h3">Peak simultaneous <small>(most seen at once in a single frame)</small></h3>
-      <div class="stat-grid" id="peak-grid"></div>
+      <div class="chart" id="chart"></div>
     </section>
 
     <footer class="footer">

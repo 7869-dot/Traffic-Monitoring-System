@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any
 
 import cv2
 
@@ -85,6 +85,7 @@ class VideoProcessor:
         video_path: str,
         max_frames: Optional[int] = None,
         collect_per_frame: bool = True,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> VideoProcessingSummary:
         """
         Process a video file and count vehicles.
@@ -93,6 +94,8 @@ class VideoProcessor:
             video_path: Path to the video file.
             max_frames: Optional limit on number of *processed* frames.
             collect_per_frame: If True, store per-frame detection details.
+            progress_callback: Optional callable invoked with a 0.0-1.0 fraction
+                as processing advances (used for async progress reporting).
         """
         self._validate_video_path(video_path)
 
@@ -118,6 +121,14 @@ class VideoProcessor:
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
             fps = float(cap.get(cv2.CAP_PROP_FPS)) or 0.0
             duration_sec = float(total_frames / fps) if fps > 0 else 0.0
+
+            # How many frames will actually be read (for progress reporting).
+            frames_to_read = total_frames
+            if max_frames is not None:
+                frames_to_read = min(
+                    frames_to_read or (max_frames * self.frame_sample_rate),
+                    max_frames * self.frame_sample_rate,
+                )
 
             frame_index = 0
             processed_frames = 0
@@ -161,8 +172,14 @@ class VideoProcessor:
                 processed_frames += 1
                 frame_index += 1
 
+                if progress_callback and frames_to_read:
+                    progress_callback(min(frame_index / frames_to_read, 0.99))
+
         finally:
             cap.release()
+
+        if progress_callback:
+            progress_callback(1.0)
 
         # Build unique estimate from tracker (ensure all classes present).
         unique_estimate: Dict[str, int] = {k: 0 for k in self.VEHICLE_CLASSES}

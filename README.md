@@ -92,10 +92,17 @@ Open `http://127.0.0.1:5500`, set the **API base URL** to your backend
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | `GET`  | `/health` | Health check |
-| `POST` | `/api/video/upload-and-process` | Upload a video and get vehicle counts |
+| `POST` | `/api/video/upload-and-process` | Upload a short video and get counts synchronously |
+| `POST` | `/api/video/upload-async` | Upload a video; returns a `job_id` and processes in the background |
+| `GET`  | `/api/video/job/{job_id}` | Poll a background job for progress and the final result |
 | `GET`  | `/api/vehicles/stats` | Detection statistics |
 | `GET`  | `/api/camera/cameras` | List local cameras (needs hardware) |
 | `GET`  | `/api/arduino/status` | Arduino connection status (needs hardware) |
+
+> The frontend uses the **async** flow: it uploads the video, then polls the job
+> for a live progress bar so long videos don't block a single request. The
+> in-memory job store works for a single worker; for multi-worker deployments
+> swap it for Redis or a database.
 
 **Example response** from `/api/video/upload-and-process`:
 
